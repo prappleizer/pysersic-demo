@@ -1,0 +1,17 @@
+pip
+arviz
+asdf
+astropy
+corner
+jax
+matplotlib
+numpy
+numpyro
+pandas
+photutils
+sep
+scipy
+tqdm
+equinox
+interpax
+pysersic
