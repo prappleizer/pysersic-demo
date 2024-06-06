@@ -151,17 +151,16 @@ class LegacyCutout:
         uri = f"https://www.legacysurvey.org/viewer-dev/cutout.fits?ra={ra_deg}&dec={dec_deg}&layer=ls-dr9&size={size}&invvar"
         print(uri)
         with fits.open(uri, lazy_load_hdus=False, cache=False, timeout=30) as hdu:
-            print(f"N Extensions: {len(hdu)}")
             print(hdu.info())
-            g = hdu[1].data
-            g_header = hdu[1].header
-            g_invar = hdu[2].data
-            r = hdu[3].data
-            r_header = hdu[3].header
-            r_invar = hdu[4].data
-            z = hdu[5].data
-            z_header = hdu[5].header
-            z_invar = hdu[6].data
+            g = hdu[0].data[0]
+            g_header = hdu[0].header
+            g_invar = hdu[1].data[0]
+            r = hdu[0].data[1]
+            r_header = hdu[0].header
+            r_invar = hdu[1].data[1]
+            z = hdu[0].data[2]
+            z_header = hdu[0].header
+            z_invar = hdu[1].data[2]
         try:
             if dec_deg > 32.375:
                 uri_psf = f"https://www.legacysurvey.org/viewer-dev/coadd-psf/?ra={ra_deg}&dec={dec_deg}&layer=ls-dr9-north"
@@ -196,7 +195,7 @@ class LegacyCutout:
         self.g = Band(
             name="g",
             image=g,
-            wcs=WCS(g_header),
+            wcs=WCS(g_header.dropaxis(2)),
             unc=g_unc,
             mask=np.isinf(g_unc).astype(int),
             psf=psf_g,
@@ -205,7 +204,7 @@ class LegacyCutout:
         self.r = Band(
             name="r",
             image=r,
-            wcs=WCS(r_header),
+            wcs=WCS(r_header.dropaxis(2)),
             unc=r_unc,
             mask=np.isinf(r_unc).astype(int),
             psf=psf_r,
@@ -214,7 +213,7 @@ class LegacyCutout:
         self.z = Band(
             name="z",
             image=z,
-            wcs=WCS(z_header),
+            wcs=WCS(z_header.dropaxis(2)),
             unc=z_unc,
             mask=np.isinf(z_unc).astype(int),
             psf=psf_z,
