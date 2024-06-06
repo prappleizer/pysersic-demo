@@ -163,6 +163,7 @@ class LegacyCutout:
             z_invar = hdu[1].data[2]
         try:
             if dec_deg > 32.375:
+                print(" deg is above cutoff; trying ls-dr9 north")
                 uri_psf = f"https://www.legacysurvey.org/viewer-dev/coadd-psf/?ra={ra_deg}&dec={dec_deg}&layer=ls-dr9-north"
                 try:
                     with fits.open(uri_psf, timeout=30, lazy_load_hdus=False) as hdu:
@@ -170,12 +171,14 @@ class LegacyCutout:
                         psf_r = hdu[1].data
                         psf_z = hdu[2].data
                 except:
+                    print("trying dr9-south")
                     uri_psf = uri_psf.replace("north", "south")
                     with fits.open(uri_psf, timeout=30, lazy_load_hdus=False) as hdu:
                         psf_g = hdu[0].data
                         psf_r = hdu[1].data
                         psf_z = hdu[2].data
             else:
+                print("dec is below cutoff, trying south")
                 try:
                     uri_psf = f"https://www.legacysurvey.org/viewer-dev/coadd-psf/?ra={ra_deg}&dec={dec_deg}&layer=ls-dr9-south"
                     with fits.open(uri_psf, timeout=30, lazy_load_hdus=False) as hdu:
@@ -183,19 +186,20 @@ class LegacyCutout:
                         psf_r = hdu[1].data
                         psf_z = hdu[2].data
                 except:
+                    print("trying north")
                     uri_psf = uri_psf.replace("south", "north")
                     with fits.open(uri_psf, timeout=30, lazy_load_hdus=False) as hdu:
                         psf_g = hdu[0].data
                         psf_r = hdu[1].data
                         psf_z = hdu[2].data
-        except:
-            print("Could Not Retrieve PSF.")
+        except Exception as e:
+            print(f"Could Not Retrieve PSF.: {e}")
 
         g_unc = (g_invar**-1) ** 0.5
         self.g = Band(
             name="g",
             image=g,
-            wcs=WCS(g_header.dropaxis(2)),
+            wcs=WCS(g_header).dropaxis(2),
             unc=g_unc,
             mask=np.isinf(g_unc).astype(int),
             psf=psf_g,
@@ -204,7 +208,7 @@ class LegacyCutout:
         self.r = Band(
             name="r",
             image=r,
-            wcs=WCS(r_header.dropaxis(2)),
+            wcs=WCS(r_header).dropaxis(2),
             unc=r_unc,
             mask=np.isinf(r_unc).astype(int),
             psf=psf_r,
@@ -213,7 +217,7 @@ class LegacyCutout:
         self.z = Band(
             name="z",
             image=z,
-            wcs=WCS(z_header.dropaxis(2)),
+            wcs=WCS(z_header).dropaxis(2),
             unc=z_unc,
             mask=np.isinf(z_unc).astype(int),
             psf=psf_z,
