@@ -1,3 +1,5 @@
+import time
+
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
@@ -6,7 +8,7 @@ from matplotlib.colors import TwoSlopeNorm
 from pysersic.rendering import HybridRenderer
 
 from run_pysersic import run_pysersic
-from saga_fitting import LegacyCutout, mask_and_crop, parse_coordinate_string
+from utils import LegacyCutout, mask_and_crop, parse_coordinate_string
 
 st.set_page_config(layout="wide")
 
@@ -39,9 +41,6 @@ with st.sidebar:
 
     st.header("Caveats* / Known Issues")
     st.markdown(
-        "- The cutout service pulls from bricks (to obtain weight maps), so galaxies at a brick edge may be cut off/not square (can't be fit in this framework)."
-    )
-    st.markdown(
         "- On occasion a band has trouble fitting due to something in the weight map or image. Try out other bands if it fails."
     )
     st.markdown(
@@ -66,7 +65,10 @@ if submit:
     cutout = LegacyCutout(
         str_id="User Galaxy", ra=skycoord.ra.value, dec=skycoord.dec.value
     )
+    time_start = time.time()
     cutout.request_cutout()
+    time_took = time.time() - time_start
+    print(f"Cutout retrieved in {time_took:.3f} s.")
     st.write("Cutout Retrieved from Legacy.")
     st.session_state["cutout"] = cutout
     with cols[1]:

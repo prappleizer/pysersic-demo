@@ -1,8 +1,6 @@
 import functools
-import os
 from collections import Counter
 
-import asdf
 import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
@@ -65,55 +63,6 @@ class LegacyCutout:
         self.dec = dec
         self.str_id = str_id
         self.im_dir = im_dir
-
-    def load_saved_cutout(self):
-        with asdf.open(os.path.join(self.im_dir, self.str_id + ".asdf")) as af:
-            self.ra = af.tree["ra"]
-            self.dec = af.tree["dec"]
-            g_unc = np.array((af.tree["g"]["invar"] ** -1) ** 0.5)
-            self.g = Band(
-                name="g",
-                image=np.array(af.tree["g"]["image"]),
-                wcs=WCS(af.tree["g"]["header"]),
-                unc=g_unc,
-                mask=np.isinf(g_unc).astype(int),
-                psf=np.array(af.tree["g"]["psf"]),
-            )
-            r_unc = np.array((af.tree["r"]["invar"] ** -1) ** 0.5)
-            self.r = Band(
-                name="r",
-                image=np.array(af.tree["r"]["image"]),
-                wcs=WCS(af.tree["r"]["header"]),
-                unc=r_unc,
-                mask=np.isinf(r_unc).astype(int),
-                psf=np.array(af.tree["r"]["psf"]),
-            )
-            try:
-                z_unc = np.array((af.tree["z"]["invar"] ** -1) ** 0.5)
-                self.z = Band(
-                    name="z",
-                    image=np.array(af.tree["z"]["image"]),
-                    wcs=WCS(af.tree["z"]["header"]),
-                    unc=z_unc,
-                    mask=np.isinf(z_unc).astype(int),
-                    psf=np.array(af.tree["z"]["psf"]),
-                )
-            except:
-                z_unc = np.array((af.tree["i"]["invar"] ** -1) ** 0.5)
-                self.z = Band(
-                    name="z",
-                    image=np.array(af.tree["i"]["image"]),
-                    wcs=WCS(af.tree["i"]["header"]),
-                    unc=z_unc,
-                    mask=np.isinf(z_unc).astype(int),
-                    psf=np.array(af.tree["i"]["psf"]),
-                )
-        if self.g.image.shape[0] != self.g.image.shape[1]:
-            print(f"DANGER: {self.str_id} : CUTOUT IS NOT SQUARE")
-            raise AssertionError(
-                "Cutout Must be square to be sure we have the galaxy in center."
-            )
-        return
 
     def plot(self, figsize=(15, 15), percentiles=[10, 99]):
         fig = plt.figure(figsize=figsize)
@@ -199,7 +148,7 @@ class LegacyCutout:
         dec = self.dec
         ra_deg = ra
         dec_deg = dec
-        uri = f"https://www.legacysurvey.org/viewer-dev/cutout.fits?ra={ra_deg}&dec={dec_deg}&layer=ls-dr9&size={size}&subimage"
+        uri = f"https://www.legacysurvey.org/viewer-dev/cutout.fits?ra={ra_deg}&dec={dec_deg}&layer=ls-dr9&size={size}&invvar"
         print(uri)
         with fits.open(uri, lazy_load_hdus=False, cache=False, timeout=30) as hdu:
             print(f"N Extensions: {len(hdu)}")
@@ -213,21 +162,35 @@ class LegacyCutout:
             z = hdu[5].data
             z_header = hdu[5].header
             z_invar = hdu[6].data
-        uri_psf = f"https://www.legacysurvey.org/viewer-dev/coadd-psf/?ra={ra_deg}&dec={dec_deg}&layer=ls-dr9-north"
         try:
-            with fits.open(uri_psf, timeout=30, lazy_load_hdus=False) as hdu:
-                psf_g = hdu[0].data
-                psf_r = hdu[1].data
-                psf_z = hdu[2].data
+            if dec_deg > 32.375:
+                uri_psf = f"https://www.legacysurvey.org/viewer-dev/coadd-psf/?ra={ra_deg}&dec={dec_deg}&layer=ls-dr9-north"
+                try:
+                    with fits.open(uri_psf, timeout=30, lazy_load_hdus=False) as hdu:
+                        psf_g = hdu[0].data
+                        psf_r = hdu[1].data
+                        psf_z = hdu[2].data
+                except:
+                    uri_psf = uri_psf.replace("north", "south")
+                    with fits.open(uri_psf, timeout=30, lazy_load_hdus=False) as hdu:
+                        psf_g = hdu[0].data
+                        psf_r = hdu[1].data
+                        psf_z = hdu[2].data
+            else:
+                try:
+                    uri_psf = f"https://www.legacysurvey.org/viewer-dev/coadd-psf/?ra={ra_deg}&dec={dec_deg}&layer=ls-dr9-south"
+                    with fits.open(uri_psf, timeout=30, lazy_load_hdus=False) as hdu:
+                        psf_g = hdu[0].data
+                        psf_r = hdu[1].data
+                        psf_z = hdu[2].data
+                except:
+                    uri_psf = uri_psf.replace("south", "north")
+                    with fits.open(uri_psf, timeout=30, lazy_load_hdus=False) as hdu:
+                        psf_g = hdu[0].data
+                        psf_r = hdu[1].data
+                        psf_z = hdu[2].data
         except:
-            uri_psf = f"https://www.legacysurvey.org/viewer-dev/coadd-psf/?ra={ra_deg}&dec={dec_deg}&layer=ls-dr9-south"
-            try:
-                with fits.open(uri_psf, timeout=30, lazy_load_hdus=False) as hdu:
-                    psf_g = hdu[0].data
-                    psf_r = hdu[1].data
-                    psf_z = hdu[2].data
-            except:
-                print("Could not retrieve PSF")
+            print("Could Not Retrieve PSF.")
 
         g_unc = (g_invar**-1) ** 0.5
         self.g = Band(
@@ -256,38 +219,6 @@ class LegacyCutout:
             mask=np.isinf(z_unc).astype(int),
             psf=psf_z,
         )
-
-        if write:
-            if out_filename is None:
-                out_path = os.path.join(self.im_dir, f"{self.str_id}.asdf")
-            else:
-                out_path = os.path.join(self.im_dir, out_filename)
-            with asdf.AsdfFile() as af:
-                af.tree["ra"] = self.ra
-                af.tree["dec"] = self.dec
-                af.tree["id"] = self.str_id
-                af.tree["g"] = dict(
-                    image=g,
-                    header=process_fits_header(g_header),
-                    invar=g_invar,
-                    psf=psf_g,
-                )
-                af.tree["r"] = dict(
-                    image=r,
-                    header=process_fits_header(r_header),
-                    invar=r_invar,
-                    psf=psf_r,
-                )
-                af.tree["z"] = dict(
-                    image=z,
-                    header=process_fits_header(z_header),
-                    invar=z_invar,
-                    psf=psf_z,
-                )
-
-                af.write_to(out_path)
-            if verbose:
-                print(f"Written {out_path}")
         return
 
 
